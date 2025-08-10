@@ -16,6 +16,23 @@ st.set_page_config(
 st.title("🏠 Real Estate vs Investing: Monte Carlo Simulation")
 st.markdown("Interactive simulator comparing **Invest** vs **Buy** strategies with fair cashflow model")
 
+# Add expandable help section
+with st.expander("ℹ️ What is Monte Carlo Simulation?"):
+    st.markdown("""
+    **Monte Carlo simulation** runs thousands of possible future scenarios using random market returns within realistic ranges.
+    
+    **Why use it?** The future is uncertain! Instead of one "average" projection, we show you the range of possible outcomes:
+    
+    - **P90 (Optimistic)**: Only 10% of simulations did better than this - your "lucky" scenario
+    - **P50 (Median)**: The middle outcome - your "typical" scenario  
+    - **P10 (Pessimistic)**: Only 10% of simulations did worse - your "unlucky" scenario
+    
+    **The shaded bands** show you the uncertainty. Wider bands = more risk/volatility.
+    
+    **Example**: If Invest P50 is $2M and Buy P50 is $1.8M, the typical investing outcome beats buying by $200k, 
+    but look at the P10 values to understand downside risk!
+    """)
+
 # Initialize session state for baseline snapshot
 if "baseline_snapshot" not in st.session_state:
     st.session_state.baseline_snapshot = None
@@ -58,6 +75,25 @@ with st.sidebar:
         help="Purchase price of the home"
     )
     
+    # Fairness Model Settings
+    st.subheader("⚖️ Fairness Model")
+    
+    params["enforce_parity"] = st.checkbox(
+        "Enforce Down-Payment Parity",
+        value=True,
+        help="When checked, Invest gets same initial cash as Buy's closing costs (fair comparison). Uncheck to set custom initial investment."
+    )
+    
+    if not params["enforce_parity"]:
+        params["invest_initial"] = st.number_input(
+            "Initial Investment Amount ($)",
+            min_value=0,
+            max_value=1000000,
+            value=params.get("invest_initial", 50000),
+            step=5000,
+            help="Custom starting amount for Invest strategy (when parity is disabled)"
+        )
+    
     # Loan parameters
     st.subheader("🏦 Mortgage Settings")
     
@@ -68,23 +104,86 @@ with st.sidebar:
     )
     
     if params["loan_type"] == "FHA":
+        # Get default value correctly (it's stored as decimal, display as percentage)
+        default_down = params.get("down_payment_pct", 0.035) * 100 if params.get("down_payment_pct", 0.035) < 1 else params.get("down_payment_pct", 3.5)
         params["down_payment_pct"] = st.slider(
             "Down Payment (%)",
-            3.5, 20.0, 3.5, 0.5,
+            3.5, 20.0, default_down, 0.5,
             help="FHA minimum is 3.5%"
         ) / 100
         
-        params["mip_finance_upfront"] = st.checkbox(
-            "Finance Upfront MIP",
-            value=True,
-            help="Roll 1.75% upfront MIP into loan (vs pay cash at closing)"
-        )
+        col1, col2 = st.columns(2)
+        with col1:
+            # Handle both decimal and percentage formats
+            default_mip = params.get("mip_rate", 0.0085)
+            default_mip = default_mip * 100 if default_mip < 1 else default_mip
+            params["mip_rate"] = st.slider(
+                "Annual MIP (%)",
+                0.0, 1.5, default_mip, 0.05,
+                help="FHA annual mortgage insurance premium"
+            ) / 100
+            
+            default_upfront = params.get("mip_upfront", 0.0175)
+            default_upfront = default_upfront * 100 if default_upfront < 1 else default_upfront
+            params["mip_upfront"] = st.slider(
+                "Upfront MIP (%)",
+                0.0, 3.0, default_upfront, 0.25,
+                help="FHA upfront mortgage insurance premium"
+            ) / 100
+        
+        with col2:
+            params["mip_finance_upfront"] = st.checkbox(
+                "Finance Upfront MIP",
+                value=params.get("mip_finance_upfront", True),
+                help="Roll upfront MIP into loan (vs pay cash at closing)"
+            )
+            
+            # MIP removal option (usually life of loan for FHA)
+            remove_mip = st.checkbox(
+                "MIP Removable",
+                value=params.get("mip_remove_ltv") is not None,
+                help="Can MIP be removed (rare for FHA)"
+            )
+            if remove_mip:
+                params["mip_remove_ltv"] = st.slider(
+                    "MIP Remove LTV",
+                    0.5, 0.9, params.get("mip_remove_ltv", 0.78), 0.01,
+                    help="LTV threshold for MIP removal"
+                )
+            else:
+                params["mip_remove_ltv"] = None
     else:
+        # Conventional loan
+        default_down_conv = params.get("down_payment_pct", 0.20)
+        default_down_conv = default_down_conv * 100 if default_down_conv < 1 else default_down_conv
         params["down_payment_pct"] = st.slider(
             "Down Payment (%)",
-            5.0, 30.0, 20.0, 1.0,
+            5.0, 30.0, default_down_conv, 1.0,
             help="Conventional: PMI required if <20% down"
         ) / 100
+        
+        # Only show PMI settings if down payment < 20%
+        if params["down_payment_pct"] < 0.20:
+            col1, col2 = st.columns(2)
+            with col1:
+                default_pmi = params.get("pmi_rate", 0.005)
+                default_pmi = default_pmi * 100 if default_pmi < 1 else default_pmi
+                params["pmi_rate"] = st.slider(
+                    "Annual PMI (%)",
+                    0.0, 1.5, default_pmi, 0.05,
+                    help="Private mortgage insurance rate"
+                ) / 100
+            
+            with col2:
+                params["pmi_remove_ltv"] = st.slider(
+                    "PMI Remove LTV",
+                    0.70, 0.80, params.get("pmi_remove_ltv", 0.78), 0.01,
+                    help="LTV threshold where PMI is removed"
+                )
+        else:
+            # No PMI needed with >= 20% down
+            params["pmi_rate"] = 0
+            params["pmi_remove_ltv"] = 0.78  # Won't be used but set a default
     
     params["mortgage_rate"] = st.slider(
         "Mortgage Rate (%)",
@@ -151,6 +250,11 @@ with st.sidebar:
         
         params["rent_growth"] = st.slider(
             "Rent Growth Rate (%)", 0.0, 5.0, 3.0, 0.25
+        ) / 100
+        
+        params["income_growth"] = st.slider(
+            "Income Growth Rate (%)", 0.0, 5.0, 2.0, 0.25,
+            help="Annual salary/income growth rate (raises, promotions, etc.)"
         ) / 100
         
         params["cpi"] = st.slider(
@@ -233,7 +337,14 @@ if show_city_overlay:
             "buy": city_results["buy_paths"]
         }
 
-# Display results
+# Display results with explanatory section
+st.info("""
+**📊 Understanding the Chart:**
+- **P50 (Median)**: The middle outcome - 50% of simulations do better, 50% do worse. This is your "typical" scenario.
+- **P10-P90 Band**: The range covering 80% of possible outcomes. P10 means only 10% of simulations did worse, P90 means 90% did worse.
+- **Wider bands = More uncertainty**: Investing typically has wider bands due to market volatility.
+""")
+
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -241,7 +352,7 @@ with col1:
     st.metric(
         "P(Invest > Buy)",
         f"{prob:.1%}",
-        help="Probability that Invest beats Buy at terminal time"
+        help="Percentage of simulations where investing beats buying at the end. >50% favors investing, <50% favors buying."
     )
 
 with col2:
@@ -256,14 +367,16 @@ with col2:
     st.metric(
         "Invest P50 (Terminal)",
         f"${invest_terminal:,.0f}",
-        f"${invest_terminal - buy_terminal:+,.0f}" if st.session_state.baseline_snapshot else None
+        f"${invest_terminal - buy_terminal:+,.0f}" if st.session_state.baseline_snapshot else None,
+        help="Median (P50) terminal value for investing. Half of simulations end up above this, half below."
     )
 
 with col3:
     st.metric(
         "Buy P50 (Terminal)",
         f"${buy_terminal:,.0f}",
-        f"${buy_terminal - invest_terminal:+,.0f}" if st.session_state.baseline_snapshot else None
+        f"${buy_terminal - invest_terminal:+,.0f}" if st.session_state.baseline_snapshot else None,
+        help="Median (P50) terminal value for buying. Half of simulations end up above this, half below."
     )
 
 # Display baseline delta if snapshot exists
@@ -287,11 +400,42 @@ with st.expander("📊 Additional Metrics"):
     
     with col1:
         st.subheader("Invest Strategy")
-        st.write(f"Initial investment (parity): ${results['closing_costs']:,.0f}")
-        st.write(f"Average monthly contribution: ${np.mean(np.maximum(0, params['monthly_savings'] - params['rent'])):,.0f}")
+        if params.get("enforce_parity", True):
+            st.write(f"Initial investment (parity): ${results['closing_costs']:,.0f}")
+        else:
+            actual_initial = params.get("invest_initial", results['closing_costs'])
+            st.write(f"Initial investment (custom): ${actual_initial:,.0f}")
+            st.write(f"  vs Buy closing costs: ${results['closing_costs']:,.0f}")
+        
+        # Calculate actual average contribution from simulation results
+        avg_invest_contrib = np.mean(results['invest_contributions'])
+        st.metric(
+            label="Average monthly contribution",
+            value=f"${avg_invest_contrib:,.0f}",
+            help="Average of all monthly contributions over time. As rent grows, less money is available to invest. When rent exceeds your budget, contributions become $0. With income growth enabled, your budget also increases over time."
+        )
+        
+        # Show rent growth impact
+        initial_rent = params['rent']
+        final_rent = initial_rent * (1 + params.get('rent_growth', 0.03)) ** params['years']
+        st.write(f"Rent: ${initial_rent:,.0f} → ${final_rent:,.0f}")
         
     with col2:
         st.subheader("Buy Strategy")
         st.write(f"Down payment: ${params['home_price'] * params['down_payment_pct']:,.0f}")
+        if params["loan_type"] == "FHA" and not params.get("mip_finance_upfront", True):
+            upfront_mip = (params["home_price"] - params["home_price"] * params["down_payment_pct"]) * params.get("mip_upfront", 0.0175)
+            st.write(f"Upfront MIP (cash): ${upfront_mip:,.0f}")
+            st.write(f"Total closing costs: ${results['closing_costs']:,.0f}")
+        else:
+            st.write(f"Total closing costs: ${results['closing_costs']:,.0f}")
+        
         st.write(f"Monthly P&I payment: ${results['payment']:,.0f}")
+        
+        # Calculate actual average housing costs and liquid contribution
+        avg_housing_outflow = np.mean(results['housing_outflow'])
+        avg_buy_contrib = np.mean(results['buy_contributions'])
+        st.write(f"Avg housing costs: ${avg_housing_outflow:,.0f}")
+        st.write(f"Avg liquid contribution: ${avg_buy_contrib:,.0f}")
+        
         st.write(f"Terminal home equity P50: ${np.percentile(results['home_equity'][:, -1], 50):,.0f}")

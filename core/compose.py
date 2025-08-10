@@ -62,6 +62,13 @@ def compose_invest_vs_buy(params):
     maintenance = home_paths[:, :-1] * (params["maintenance_rate"] / 12)
     hoa = np.full((n_paths, n_months), params["hoa_monthly"])
     
+    # Income/savings paths (accounting for salary growth)
+    monthly_savings = params["monthly_savings"]
+    income_growth = params.get("income_growth", 0)  # Default to 0 if not specified
+    savings_paths = np.zeros((n_paths, n_months))
+    for t in range(n_months):
+        savings_paths[:, t] = monthly_savings * (1 + income_growth) ** (t / 12)
+    
     # Calculate PMI/MIP
     pmi_mip = np.zeros((n_paths, n_months))
     if params["loan_type"] == "FHA":
@@ -81,8 +88,8 @@ def compose_invest_vs_buy(params):
     housing_outflow = (np.full((n_paths, n_months), payment) + 
                       property_tax + insurance + maintenance + hoa + pmi_mip)
     
-    # Buy strategy liquid contributions
-    buy_contributions = np.maximum(0, params["monthly_savings"] - housing_outflow)
+    # Buy strategy liquid contributions (also benefits from income growth)
+    buy_contributions = np.maximum(0, savings_paths - housing_outflow)
     
     # Simulate buy liquid portfolio
     buy_liquid_paths = simulate_equity_portfolio(
@@ -117,11 +124,18 @@ def compose_invest_vs_buy(params):
         rent_paths[:, t] = rent * (1 + rent_growth) ** (t / 12)
     
     # Invest strategy contributions (gets closing costs + monthly after rent)
-    invest_contributions = np.maximum(0, params["monthly_savings"] - rent_paths)
+    # Note: savings_paths already calculated above with income growth
+    invest_contributions = np.maximum(0, savings_paths - rent_paths)
     
-    # Simulate invest portfolio (starts with closing costs for parity)
+    # Initial investment: either parity (closing costs) or custom amount
+    if params.get("enforce_parity", True):
+        invest_initial = closing_costs
+    else:
+        invest_initial = params.get("invest_initial", closing_costs)
+    
+    # Simulate invest portfolio
     invest_paths = simulate_equity_portfolio(
-        closing_costs,
+        invest_initial,
         invest_contributions,
         params["equity_mu"],
         params["equity_sigma"],
@@ -140,5 +154,8 @@ def compose_invest_vs_buy(params):
         "home_equity": home_equity,
         "closing_costs": closing_costs,
         "payment": payment,
-        "n_months": n_months
+        "n_months": n_months,
+        "invest_contributions": invest_contributions,
+        "buy_contributions": buy_contributions,
+        "housing_outflow": housing_outflow
     }

@@ -40,23 +40,23 @@ def create_net_worth_chart(invest_paths, buy_paths, params, baseline_data=None, 
         name="Invest P90",
         line=dict(color="rgba(70, 130, 180, 0)", width=0),
         showlegend=False,
-        hovertemplate="P90: $%{y:,.0f}<extra></extra>"
+        hovertemplate="P90 (Lucky): $%{y:,.0f}<extra></extra>"
     ))
     
     fig.add_trace(go.Scatter(
         x=years, y=invest_pcts[10],
-        name="Invest P10-P90",
+        name="Invest P10-P90 Range",
         line=dict(color="rgba(70, 130, 180, 0)", width=0),
         fill="tonexty",
         fillcolor="rgba(70, 130, 180, 0.2)",
-        hovertemplate="P10: $%{y:,.0f}<extra></extra>"
+        hovertemplate="P10 (Unlucky): $%{y:,.0f}<extra></extra>"
     ))
     
     fig.add_trace(go.Scatter(
         x=years, y=invest_pcts[50],
-        name="Invest P50",
+        name="Invest P50 (Median)",
         line=dict(color="steelblue", width=2),
-        hovertemplate="P50: $%{y:,.0f}<extra></extra>"
+        hovertemplate="P50 (Typical): $%{y:,.0f}<extra></extra>"
     ))
     
     # Add Buy bands (P10-P90 fill, then P50 line)
@@ -65,23 +65,23 @@ def create_net_worth_chart(invest_paths, buy_paths, params, baseline_data=None, 
         name="Buy P90",
         line=dict(color="rgba(255, 140, 0, 0)", width=0),
         showlegend=False,
-        hovertemplate="P90: $%{y:,.0f}<extra></extra>"
+        hovertemplate="P90 (Lucky): $%{y:,.0f}<extra></extra>"
     ))
     
     fig.add_trace(go.Scatter(
         x=years, y=buy_pcts[10],
-        name="Buy P10-P90",
+        name="Buy P10-P90 Range",
         line=dict(color="rgba(255, 140, 0, 0)", width=0),
         fill="tonexty",
         fillcolor="rgba(255, 140, 0, 0.2)",
-        hovertemplate="P10: $%{y:,.0f}<extra></extra>"
+        hovertemplate="P10 (Unlucky): $%{y:,.0f}<extra></extra>"
     ))
     
     fig.add_trace(go.Scatter(
         x=years, y=buy_pcts[50],
-        name="Buy P50",
+        name="Buy P50 (Median)",
         line=dict(color="darkorange", width=2),
-        hovertemplate="P50: $%{y:,.0f}<extra></extra>"
+        hovertemplate="P50 (Typical): $%{y:,.0f}<extra></extra>"
     ))
     
     # Add baseline snapshot if provided
