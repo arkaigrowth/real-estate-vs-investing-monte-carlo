@@ -60,19 +60,19 @@ with st.sidebar:
     params["monthly_savings"] = st.slider(
         "Monthly Savings Budget ($)",
         1000, 15000, params["monthly_savings"], 500,
-        help="Total monthly budget available for housing + investing"
+        help="Your total monthly budget for both housing and investing. This is the 'fair comparison' amount - both strategies get the same budget. For renters: pays rent first, remainder goes to stocks. For buyers: pays mortgage/taxes/insurance first, remainder to liquid investments. Think of this as your monthly surplus after all non-housing expenses."
     )
     
     params["rent"] = st.slider(
         "Monthly Rent ($)",
         500, 10000, params["rent"], 100,
-        help="Monthly rent payment for Invest strategy"
+        help="Starting monthly rent if you choose to invest instead of buy. This grows over time based on 'Rent Growth Rate'. Higher rent means less money available to invest each month. Compare this to the monthly mortgage payment to see the cashflow difference. Typically rent for a comparable home is initially lower than ownership costs but grows over time."
     )
     
     params["home_price"] = st.slider(
         "Home Price ($)",
         100000, 2000000, params["home_price"], 10000,
-        help="Purchase price of the home"
+        help="Purchase price of the home you're considering. This determines your down payment, loan amount, property taxes, insurance, and maintenance costs. The home value will appreciate (or depreciate) randomly based on the Home Appreciation and Volatility settings. Higher price means larger down payment and monthly costs, but also more potential appreciation."
     )
     
     # Fairness Model Settings
@@ -81,7 +81,7 @@ with st.sidebar:
     params["enforce_parity"] = st.checkbox(
         "Enforce Down-Payment Parity",
         value=True,
-        help="When checked, Invest gets same initial cash as Buy's closing costs (fair comparison). Uncheck to set custom initial investment."
+        help="IMPORTANT for fair comparison! When ON: The 'Invest' strategy starts with the exact same cash that 'Buy' spends at closing (down payment + closing costs). This ensures neither strategy has an unfair advantage. When OFF: You can set a custom starting amount for investing, but this may bias the comparison. Example: If buying requires $50k at closing, investing also starts with $50k."
     )
     
     if not params["enforce_parity"]:
@@ -100,7 +100,7 @@ with st.sidebar:
     params["loan_type"] = st.radio(
         "Loan Type",
         ["FHA", "Conventional"],
-        help="FHA: Lower down payment with MIP | Conventional: Higher down with PMI"
+        help="FHA loans: Government-backed, allowing 3.5% down but requiring mortgage insurance premium (MIP) often for the life of the loan. Good for first-time buyers with limited savings. Conventional loans: Require 5-20% down. With <20% down, you pay private mortgage insurance (PMI) until reaching 78% loan-to-value. PMI can be removed, unlike most FHA MIP."
     )
     
     if params["loan_type"] == "FHA":
@@ -109,7 +109,7 @@ with st.sidebar:
         params["down_payment_pct"] = st.slider(
             "Down Payment (%)",
             3.5, 20.0, default_down, 0.5,
-            help="FHA minimum is 3.5%"
+            help="FHA minimum is 3.5% of home price. Lower down payment means: 1) Less cash needed upfront, 2) Higher loan amount and monthly payment, 3) More interest paid over time, 4) MIP for the life of the loan in most cases. Example: 3.5% down on $400k home = $14k down payment + $386k loan."
         ) / 100
         
         col1, col2 = st.columns(2)
@@ -120,7 +120,7 @@ with st.sidebar:
             params["mip_rate"] = st.slider(
                 "Annual MIP (%)",
                 0.0, 1.5, default_mip, 0.05,
-                help="FHA annual mortgage insurance premium"
+                help="FHA annual mortgage insurance premium, paid monthly as part of your payment. Typically 0.55-0.85% of loan amount per year. This protects the lender if you default. Unlike PMI, FHA MIP usually can't be removed without refinancing. Adds ~$200-300/month on a $400k loan."
             ) / 100
             
             default_upfront = params.get("mip_upfront", 0.0175)
@@ -128,14 +128,14 @@ with st.sidebar:
             params["mip_upfront"] = st.slider(
                 "Upfront MIP (%)",
                 0.0, 3.0, default_upfront, 0.25,
-                help="FHA upfront mortgage insurance premium"
+                help="FHA one-time upfront mortgage insurance premium, typically 1.75% of loan amount. You can either: 1) Finance it (add to loan balance, most common), or 2) Pay cash at closing. Financing means higher loan amount but preserves cash. Example: $7,000 on a $400k loan."
             ) / 100
         
         with col2:
             params["mip_finance_upfront"] = st.checkbox(
                 "Finance Upfront MIP",
                 value=params.get("mip_finance_upfront", True),
-                help="Roll upfront MIP into loan (vs pay cash at closing)"
+                help="When checked: Adds upfront MIP to your loan balance (most common choice). You'll pay interest on it but keep more cash at closing. When unchecked: Pay upfront MIP in cash at closing, reducing your loan amount but requiring more upfront cash. The 'fair comparison' adjusts the Invest starting amount accordingly."
             )
             
             # MIP removal option (usually life of loan for FHA)
@@ -159,7 +159,7 @@ with st.sidebar:
         params["down_payment_pct"] = st.slider(
             "Down Payment (%)",
             5.0, 30.0, default_down_conv, 1.0,
-            help="Conventional: PMI required if <20% down"
+            help="Conventional loans: 20% down avoids PMI entirely (best rate). 10-19% down requires PMI until 78% LTV. 5-9% down has higher PMI rates. More down = lower monthly payment, less interest, potential PMI avoidance. Trade-off: Less cash for investing. Example: 20% on $400k = $80k down, no PMI."
         ) / 100
         
         # Only show PMI settings if down payment < 20%
@@ -171,14 +171,14 @@ with st.sidebar:
                 params["pmi_rate"] = st.slider(
                     "Annual PMI (%)",
                     0.0, 1.5, default_pmi, 0.05,
-                    help="Private mortgage insurance rate"
+                    help="Private mortgage insurance rate for conventional loans with <20% down. Typically 0.3-1.0% annually. Unlike FHA MIP, PMI automatically drops off at 78% LTV (or you can request removal at 80% LTV). Higher down payment = lower PMI rate. Adds $100-400/month on typical loans."
                 ) / 100
             
             with col2:
                 params["pmi_remove_ltv"] = st.slider(
                     "PMI Remove LTV",
                     0.70, 0.80, params.get("pmi_remove_ltv", 0.78), 0.01,
-                    help="LTV threshold where PMI is removed"
+                    help="Loan-to-value ratio where PMI is removed. By law, PMI must drop at 78% LTV (when you owe 78% of original home value). You can request removal at 80% LTV. Some lenders allow earlier removal with appraisal showing appreciation. Lower = PMI removed sooner = savings on monthly payment."
                 )
         else:
             # No PMI needed with >= 20% down
@@ -188,7 +188,7 @@ with st.sidebar:
     params["mortgage_rate"] = st.slider(
         "Mortgage Rate (%)",
         3.0, 10.0, 6.5, 0.1,
-        help="Annual mortgage interest rate"
+        help="Annual interest rate on your mortgage (before any fees/points). Current rates depend on credit score, down payment, and loan type. Higher rate = higher monthly payment and more total interest paid. Example: 6% on $400k loan ≈ $2,400/month. 7% ≈ $2,660/month. Check current rates at banks/credit unions."
     ) / 100
     
     # Return assumptions
@@ -199,72 +199,86 @@ with st.sidebar:
         params["equity_mu"] = st.slider(
             "Equity Return (%)",
             0.0, 15.0, 7.0, 0.5,
-            help="Annual expected equity return"
+            help="Expected annual return for stock market investments (before fees). Historical S&P 500: ~10% nominal, ~7% real (after inflation). This is the 'drift' in the Monte Carlo simulation. Higher returns favor investing over buying, but come with higher volatility. International stocks, bonds, or conservative portfolios may have lower returns."
         ) / 100
         
         params["home_mu"] = st.slider(
             "Home Appreciation (%)",
             0.0, 10.0, 4.0, 0.5,
-            help="Annual home price appreciation"
+            help="Expected annual home price appreciation. Historical US average: ~3-4% nominal (matches inflation long-term). Hot markets may see 5-7%. This affects your home equity growth and final sale value. Remember: You're leveraged 5-20x with a mortgage, amplifying gains AND losses. Location matters more than national averages."
         ) / 100
     
     with col2:
         params["equity_sigma"] = st.slider(
             "Equity Volatility (%)",
             5.0, 30.0, 15.0, 1.0,
-            help="Annual equity volatility"
+            help="Annual stock market volatility (standard deviation). Historical S&P 500: ~15-20%. Higher volatility = wider range of outcomes (both good and bad). This creates the 'bands' in the chart. Conservative portfolios: 8-12%. Aggressive/tech: 20-30%. Volatility is why the P10-P90 range is wide for stocks."
         ) / 100
         
         params["home_sigma"] = st.slider(
             "Home Volatility (%)",
             2.0, 20.0, 10.0, 1.0,
-            help="Annual home price volatility"
+            help="Annual home price volatility. Real estate is typically less volatile than stocks (5-15% vs 15-20%). But leverage amplifies this: with 20% down, you're 5x leveraged, so 10% home volatility feels like 50% on your equity. Local markets vary: stable suburbs (5-8%), hot markets (10-15%), speculation zones (15-20%)."
         ) / 100
     
     # Advanced settings
     with st.expander("🔧 Advanced Settings"):
-        params["years"] = st.slider("Time Horizon (years)", 10, 40, 30, 5)
-        params["n_paths"] = st.slider("Simulation Paths", 1000, 10000, 5000, 1000)
-        params["seed"] = st.number_input("Random Seed", 0, 10000, 42)
+        params["years"] = st.slider(
+            "Time Horizon (years)", 10, 40, 30, 5,
+            help="How long to simulate into the future. Longer horizons favor buying (mortgage gets paid down, rent keeps rising). Shorter horizons may favor renting (avoid transaction costs). Most mortgages are 30 years. Consider your life plans: Will you stay put or move?"
+        )
+        params["n_paths"] = st.slider(
+            "Simulation Paths", 1000, 10000, 5000, 1000,
+            help="Number of Monte Carlo simulations to run. More paths = smoother probability estimates but slower computation. 1000 = quick and rough. 5000 = good balance. 10000 = smooth and accurate. Each path is one possible future scenario."
+        )
+        params["seed"] = st.number_input(
+            "Random Seed", 0, 10000, 42,
+            help="Sets the random number generator for reproducible results. Same seed = same results every time. Change this to see different random scenarios. Default 42 is a programmer joke (Hitchhiker's Guide to the Galaxy)."
+        )
         
         params["property_tax_rate"] = st.slider(
-            "Property Tax Rate (%)", 0.5, 3.0, 1.5, 0.1
+            "Property Tax Rate (%)", 0.5, 3.0, 1.5, 0.1,
+            help="Annual property tax as % of home value. Varies widely by location: Texas ~2%, California ~0.75%, New Jersey ~2.5%. This is a major ongoing cost of ownership. Can be based on current value (realistic) or original price (some states). Check your county assessor website for local rates."
         ) / 100
         
         params["insurance_rate"] = st.slider(
-            "Insurance Rate (%)", 0.2, 1.0, 0.4, 0.05
+            "Insurance Rate (%)", 0.2, 1.0, 0.4, 0.05,
+            help="Annual homeowners insurance as % of home value. Varies by location and coverage: Low risk areas ~0.3%, hurricane zones ~1%+. Covers damage, liability, theft. Required by lenders. Separate from mortgage insurance (PMI/MIP). Add flood/earthquake if needed."
         ) / 100
         
         params["maintenance_rate"] = st.slider(
-            "Maintenance Rate (%)", 0.5, 2.0, 1.0, 0.1
+            "Maintenance Rate (%)", 0.5, 2.0, 1.0, 0.1,
+            help="Annual maintenance/repairs as % of home value. Rule of thumb: 1% annually. New homes: 0.5-1%. Older homes: 1-2%. Includes: roof, HVAC, plumbing, painting, appliances. Renters don't pay this directly (included in rent). Major expense often overlooked by first-time buyers."
         ) / 100
         
         params["hoa_monthly"] = st.slider(
-            "HOA Monthly ($)", 0, 500, 100, 25
+            "HOA Monthly ($)", 0, 500, 100, 25,
+            help="Homeowners Association monthly fee. Covers shared amenities, landscaping, exterior maintenance. Condos: $200-500+. Townhomes: $100-300. Single family: $0-200. Can increase over time. Check HOA finances before buying - underfunded HOAs mean special assessments later."
         )
         
         params["selling_cost_rate"] = st.slider(
             "Selling Costs (%)", 0.0, 10.0, 7.0, 0.5,
-            help="Realtor fees, closing costs, etc. at sale"
+            help="Transaction costs when selling the home at the end. Typically 6-10% total: Realtor commission (5-6%), closing costs (1-2%), repairs/staging (1-2%). This reduces your final proceeds. Stocks have minimal selling costs (<0.1%). High selling costs favor staying put longer."
         ) / 100
         
         params["rent_growth"] = st.slider(
-            "Rent Growth Rate (%)", 0.0, 5.0, 3.0, 0.25
+            "Rent Growth Rate (%)", 0.0, 5.0, 3.0, 0.25,
+            help="Annual rent increase rate. Historical average ~3-4% (slightly above inflation). Hot markets: 5-7%. Rent control areas: 1-2%. This compounds over time - 3% for 30 years means rent triples! Higher rent growth favors buying (locks in housing cost). Consider local market trends."
         ) / 100
         
         params["income_growth"] = st.slider(
             "Income Growth Rate (%)", 0.0, 5.0, 2.0, 0.25,
-            help="Annual salary/income growth rate (raises, promotions, etc.)"
+            help="Annual salary/income growth from raises and promotions. Typical: 2-3% (matches inflation). Early career: 4-6%. Late career: 1-2%. This increases your monthly savings budget over time, allowing larger contributions to either strategy. Critical for keeping up with rising rents."
         ) / 100
         
         params["cpi"] = st.slider(
             "CPI Inflation (%)", 0.0, 5.0, 2.5, 0.25,
-            help="For real dollar calculations"
+            help="Consumer Price Index inflation for 'real dollar' calculations. Historical average ~2-3%. When 'Show Real Dollars' is ON, all values are adjusted to today's purchasing power. This helps you understand true wealth vs inflated numbers. Example: $1M in 30 years ≈ $400k today at 3% inflation."
         ) / 100
         
         params["equity_fee"] = st.slider(
             "Equity Fee (%)", 0.0, 2.0, 0.15, 0.05,
-            help="Annual expense ratio for equity portfolio"
+            help="Annual expense ratio for stock investments. Index funds: 0.03-0.20%. Active mutual funds: 0.5-1.5%. Robo-advisors: 0.25-0.50%. This drag reduces returns every year and compounds over time. Low fees are crucial for long-term investing. Vanguard/Fidelity/Schwab offer <0.1% index funds."
         ) / 100
     
     # Display options
@@ -274,18 +288,18 @@ with st.sidebar:
         "Property Tax Basis",
         ["current", "original"],
         format_func=lambda x: "Current Value" if x == "current" else "Original Price",
-        help="Calculate property tax on current value or original purchase price"
+        help="How to calculate property tax over time. 'Current Value': Tax increases with home appreciation (realistic for most states). 'Original Price': Tax stays based on purchase price (like California's Prop 13). Current value means higher taxes but reflects reality. Original is conservative for planning."
     )
     
     params["show_real"] = st.checkbox(
         "Show Real Dollars",
-        help="Adjust for inflation using CPI"
+        help="Adjusts all dollar amounts for inflation to show 'today's purchasing power'. When ON: Shows what future dollars are worth in today's terms. When OFF: Shows nominal (face value) dollars. Real dollars help you understand true wealth. Example: $2M nominal might be $1M real after 30 years of 2.5% inflation."
     )
     
     # City overlay
     show_city_overlay = st.checkbox(
         "Show City Comparison",
-        help="Overlay Chicago and Tampa medians"
+        help="Overlays median outcomes for Chicago and Tampa using their city-specific defaults (home prices, rent, appreciation rates). Useful for comparing how location affects the invest vs buy decision. Cities use the same return assumptions but different housing parameters."
     )
     
     # Baseline snapshot
