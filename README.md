@@ -109,7 +109,7 @@ Open the URL Streamlit prints (usually [http://localhost:8501](http://localhost:
 
 ## Architecture
 
-```
+```text
 app.py                     # Streamlit UI, tooltips, toggles, Baseline Snapshot, city overlay
 charts/
   timeseries.py            # Plotly bands, medians, yearly majors + monthly minor grid
@@ -149,6 +149,7 @@ pytest -q
 ```
 
 Covers:
+
 * Mortgage payment & amortization sums
 * Equity path with **variable contributions** (μ=σ=0 → linear sum)
 * Fairness baseline sanity (no growth/costs → Invest P50 ≈ Buy P50)
@@ -187,10 +188,12 @@ git worktree remove ../feat-mortgage   # after merge
 ## Troubleshooting
 
 * **"requirements.txt not found"** → you're probably in the wrong folder.
+
   ```bash
   pwd && ls -la && find . -maxdepth 3 -iname "requirements.txt"
   cd real-estate-vs-investing-monte-carlo
   ```
+
 * **Port already in use** → `streamlit run` picks a new port automatically or stop the previous run.
 * **Plotly/Streamlit not found** → ensure virtualenv is **activated** and install deps.
 * **Slow runs** → lower `n_paths`; shorten horizon; keep CPI/variance reasonable.

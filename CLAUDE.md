@@ -2,6 +2,7 @@
 Repo: **real-estate-vs-investing-monte-carlo**
 
 ## Mission
+
 Interactive Monte Carlo simulator comparing **Invest vs Buy** with a *fair cashflow* model:
 - One monthly savings budget **S**
 - **Down-payment parity** (Invest gets same t0 cash that Buy spends at closing)
@@ -10,8 +11,10 @@ Interactive Monte Carlo simulator comparing **Invest vs Buy** with a *fair cashf
 - **Real dollars** display (CPI deflation)
 - **Baseline Snapshot (A/B)** overlay (median dotted lines + delta metrics)
 - City overlay **Chicago vs Tampa** (median-only)
+- **Educational tooltips** on all sliders with examples, typical values, and trade-offs
 
 ## Architecture
+
 - `app.py` — Streamlit UI (sidebar controls, tooltips, A/B snapshot, city overlay)
 - `charts/timeseries.py` — Plotly builders (P10–P90 bands, medians, ticks, legends)
 - `core/`
@@ -38,13 +41,14 @@ streamlit run app.py
 
 ## Acceptance Criteria (MVP)
 
-* UI sliders/toggles work; tooltips present.
+* UI sliders/toggles work; comprehensive educational tooltips present.
 * P10/P50/P90 bands for both strategies; x-axis = yearly majors + monthly minor grid.
 * Probability card + terminal P50 metrics update with inputs.
 * FHA↔Conventional; finance vs pay-cash MIP; tax-base toggles behave as documented.
 * Baseline Snapshot overlays **dotted P50** for baseline + terminal deltas.
 * Same seed → same results.
 * Default run (5k paths, 30y) renders within a few seconds on a laptop.
+* All tooltips provide educational value with real-world context and examples.
 
 ## Prompts (Claude Code)
 
